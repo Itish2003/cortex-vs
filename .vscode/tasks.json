@@ -1,0 +1,34 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "npm",
+			"script": "watch:esbuild",
+			"group": "build",
+			"problemMatcher": [
+				"$esbuild-watch"
+			],
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never"
+			}
+		}
+	],
+	"problemMatcher": [
+		{
+			"name": "esbuild-watch",
+			"background": {
+				"activeOnStart": true,
+				"beginsPattern": "^[watch] build started$",
+				"endsPattern": "^[watch] build finished$"
+			},
+			"pattern": {
+				"regexp": "^\\s*(?:✘ [ERROR] )?(.*)$",
+				"file": 1,
+				"line": 2,
+				"column": 3,
+				"message": 4
+			}
+		}
+	]
+}
