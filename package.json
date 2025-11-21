@@ -21,7 +21,35 @@
         "command": "cortex-vs.disconnect",
         "title": "Cortex: Disconnect"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Cortex Mentor",
+      "properties": {
+        "cortex.backendUrl": {
+          "type": "string",
+          "default": "ws://localhost:8000/ws",
+          "description": "The WebSocket URL of the Cortex Mentor backend."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cortex-sidebar",
+          "title": "Cortex Mentor",
+          "icon": "$(hubot)"
+        }
+      ]
+    },
+    "views": {
+      "cortex-sidebar": [
+        {
+          "type": "webview",
+          "id": "cortex.chatView",
+          "name": "Mentor Chat"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
