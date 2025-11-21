@@ -50,6 +50,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 				if (message.type === 'insight') {
 					console.log('Cortex Mentor: Received insight.');
+					// Force the view to open
+					vscode.commands.executeCommand('cortex.chatView.focus');
 					// Send to the Chat View
 					provider.addInsight(message.text, message.audio);
 				} else {

@@ -5,6 +5,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'cortex.chatView';
 
     private _view?: vscode.WebviewView;
+    private _messageQueue: Array<{ text: string, audio: string }> = [];
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -40,12 +41,23 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 }
             }
         });
+
+        // Flush pending messages
+        while (this._messageQueue.length > 0) {
+            const msg = this._messageQueue.shift();
+            if (msg) {
+                this.addInsight(msg.text, msg.audio);
+            }
+        }
     }
 
     public addInsight(text: string, audioBase64: string) {
         if (this._view) {
             this._view.show?.(true); // Make sure view is visible
             this._view.webview.postMessage({ type: 'addInsight', text: text, audio: audioBase64 });
+        } else {
+            // Queue the message if the view is not yet ready
+            this._messageQueue.push({ text, audio: audioBase64 });
         }
     }
 
