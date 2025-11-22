@@ -41,6 +41,7 @@ export function activate(context: vscode.ExtensionContext) {
 			statusBarItem.text = '$(zap) Cortex';
 			statusBarItem.tooltip = 'Cortex Mentor: Connected';
 			statusBarItem.command = 'cortex-vs.disconnect';
+			provider.setConnectionStatus(true);
 		});
 
 		ws.on('message', (data: WebSocket.Data) => {
@@ -75,6 +76,7 @@ export function activate(context: vscode.ExtensionContext) {
 			statusBarItem.tooltip = 'Cortex Mentor: Disconnected';
 			statusBarItem.command = 'cortex-vs.connect';
 			ws = null;
+			provider.setConnectionStatus(false);
 		});
 
 		ws.on('error', (error) => {
@@ -84,6 +86,7 @@ export function activate(context: vscode.ExtensionContext) {
 			if (ws) {
 				ws.close();
 			}
+			provider.setConnectionStatus(false);
 		});
 	};
 
