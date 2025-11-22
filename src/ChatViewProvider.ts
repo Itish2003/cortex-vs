@@ -148,14 +148,14 @@ graph TD
     D --> D1
     D1 --> A
     A --> User
-`;
+`.trim();
 
         return `<!DOCTYPE html>
 			<html lang="en">
 			<head>
 				<meta charset="UTF-8">
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' https://cdn.jsdelivr.net; media-src data:;">
+                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' https://cdn.jsdelivr.net; img-src ${webview.cspSource} https: data:; media-src data:;">
 				<title>Cortex Mentor Chat</title>
                 <script nonce="${nonce}" src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
                 <style>
@@ -345,35 +345,66 @@ graph TD
                         padding-top: 20px;
                     }
                     
-                    .mermaid {
-                        background-color: white;
+                    .mermaid-output {
+                        background-color: black;
                         padding: 20px;
                         border-radius: 8px;
                         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                        cursor: zoom-in;
+                        transition: transform 0.2s;
                     }
 
-                    /* Clear Button */
-                    .clear-btn {
-                        position: fixed;
-                        bottom: 20px;
-                        right: 20px;
-                        background-color: var(--vscode-errorForeground);
-                        color: white;
-                        border: none;
-                        padding: 8px 12px;
-                        border-radius: 4px;
-                        cursor: pointer;
-                        opacity: 0.8;
-                        font-size: 0.8em;
-                        z-index: 100;
+                    .mermaid-output:hover {
+                        transform: scale(1.02);
                     }
-                    .clear-btn:hover {
-                        opacity: 1;
+                    
+                    .mermaid-output svg {
+                        max-width: none !important;
+                        width: 100% !important;
+                        height: auto !important;
+                    }
+
+                    /* Lightbox */
+                    .lightbox {
+                        display: none;
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background-color: rgba(0, 0, 0, 0.9);
+                        z-index: 1000;
+                        justify-content: center;
+                        align-items: center;
+                        overflow: auto;
+                        cursor: zoom-out;
+                    }
+
+                    .lightbox.active {
+                        display: flex;
+                        animation: fadeIn 0.2s ease-out;
+                    }
+
+                    .lightbox-content {
+                        max-width: 95%;
+                        max-height: 95%;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                    }
+
+                    .lightbox-content img {
+                        max-width: 100%;
+                        max-height: 90vh;
+                        object-fit: contain;
+                        box-shadow: 0 0 20px rgba(255,255,255,0.1);
+                        border-radius: 4px;
+                        background-color: black; /* Ensure background matches */
                     }
 
                     @keyframes fadeIn {
-                        from { opacity: 0; transform: translateY(5px); }
-                        to { opacity: 1; transform: translateY(0); }
+                        from { opacity: 0; }
+                        to { opacity: 1; }
                     }
                 </style>
 			</head>
@@ -381,8 +412,8 @@ graph TD
                 <!-- Tabs -->
                 <div class="tabs">
                     <div class="tab-container">
-                        <div class="tab active" id="tab-chat" onclick="switchTab('chat')">Chat</div>
-                        <div class="tab" id="tab-architecture" onclick="switchTab('architecture')">Architecture</div>
+                        <div class="tab active" id="tab-chat">Chat</div>
+                        <div class="tab" id="tab-architecture">Architecture</div>
                     </div>
                     <div class="status-container" title="WebSocket Connection Status">
                         <div id="status-dot" class="status-dot"></div>
@@ -395,23 +426,32 @@ graph TD
                     <div id="chat-container">
                         <!-- Messages go here -->
                     </div>
-                    <button class="clear-btn" onclick="clearChat()">Clear Chat</button>
+                    <button class="clear-btn" id="clear-chat-btn">Clear Chat</button>
                 </div>
 
                 <!-- Architecture Tab -->
                 <div id="architecture-content" class="content-area">
                     <div id="architecture-container">
-                        <div class="mermaid">
-                            ${mermaidDiagram}
+                        <!-- Hidden Source -->
+                        <div id="mermaid-source" style="display: none;">
+${mermaidDiagram}
                         </div>
+                        <!-- Output Container -->
+                        <div id="mermaid-output" class="mermaid-output"></div>
                     </div>
+                </div>
+
+                <!-- Lightbox -->
+                <div id="lightbox" class="lightbox">
+                    <div id="lightbox-content" class="lightbox-content"></div>
                 </div>
 
 				<script type="module" nonce="${nonce}">
                     import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
                     
-                    // Initialize Mermaid
-                    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+                    // Initialize
+                    mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+                    window.mermaid = mermaid;
                 </script>
 
 				<script nonce="${nonce}">
@@ -426,10 +466,19 @@ graph TD
 
                         // Notify extension we are ready
                         vscode.postMessage({ type: 'webviewLoaded' });
+
+                        // Attach Event Listeners
+                        document.getElementById('tab-chat').addEventListener('click', () => switchTab('chat'));
+                        document.getElementById('tab-architecture').addEventListener('click', () => switchTab('architecture'));
+                        document.getElementById('clear-chat-btn').addEventListener('click', clearChat);
+                        
+                        // Lightbox Listeners
+                        document.getElementById('mermaid-output').addEventListener('click', openLightbox);
+                        document.getElementById('lightbox').addEventListener('click', closeLightbox);
                     });
 
                     // Tab Switching
-                    window.switchTab = function(tabName, saveState = true) {
+                    function switchTab(tabName, saveState = true) {
                         // Hide all content
                         document.querySelectorAll('.content-area').forEach(el => el.classList.remove('active'));
                         document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
@@ -444,10 +493,62 @@ graph TD
                         if (saveState) {
                             vscode.setState({ tab: tabName });
                         }
+
+                        // Trigger Mermaid render if switching to architecture
+                        if (tabName === 'architecture' && window.mermaid) {
+                            // Clear previous output and inject fresh source
+                            const source = document.getElementById('mermaid-source').textContent;
+                            const output = document.getElementById('mermaid-output');
+                            output.textContent = source;
+                            output.removeAttribute('data-processed'); // Clear mermaid marker
+
+                            // Delay to ensure DOM is updated
+                            setTimeout(async () => {
+                                try {
+                                    await window.mermaid.run({
+                                        nodes: [output]
+                                    });
+                                } catch (err) {
+                                    console.error('Mermaid Render Error:', err);
+                                    vscode.postMessage({ type: 'onError', value: 'Mermaid Render Error: ' + err.message });
+                                }
+                            }, 100);
+                        }
+                    }
+
+                    // Lightbox Logic
+                    function openLightbox() {
+                        const output = document.getElementById('mermaid-output');
+                        const svg = output.querySelector('svg');
+                        const lightbox = document.getElementById('lightbox');
+                        const lightboxContent = document.getElementById('lightbox-content');
+                        
+                        if (svg) {
+                            // Ensure namespace exists for image rendering
+                            if (!svg.hasAttribute('xmlns')) {
+                                svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+                            }
+
+                            // Serialize SVG to string
+                            const serializer = new XMLSerializer();
+                            let source = serializer.serializeToString(svg);
+
+                            // Encode to Base64
+                            const base64 = btoa(unescape(encodeURIComponent(source)));
+                            const imgSrc = 'data:image/svg+xml;base64,' + base64;
+
+                            // Create Image
+                            lightboxContent.innerHTML = '<img src="' + imgSrc + '" alt="Architecture Diagram" />';
+                            lightbox.classList.add('active');
+                        }
+                    }
+
+                    function closeLightbox() {
+                        document.getElementById('lightbox').classList.remove('active');
                     }
 
                     // Clear Chat
-                    window.clearChat = function() {
+                    function clearChat() {
                         document.getElementById('chat-container').innerHTML = '';
                         chatHistory = [];
                         saveHistory();
