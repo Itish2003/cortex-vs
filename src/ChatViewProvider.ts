@@ -6,6 +6,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     private _view?: vscode.WebviewView;
     private _messageQueue: Array<{ text: string, audio: string }> = [];
+    private _isConnected: boolean = false;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -39,6 +40,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     vscode.window.showErrorMessage(data.value);
                     break;
                 }
+                case 'saveHistory': {
+                    // Forward history to extension for storage
+                    vscode.commands.executeCommand('cortex.saveChatHistory', data.history);
+                    break;
+                }
+                case 'webviewLoaded': {
+                    // Request history load
+                    vscode.commands.executeCommand('cortex.loadChatHistory');
+                    // Restore connection status
+                    this.setConnectionStatus(this._isConnected);
+                    break;
+                }
             }
         });
 
@@ -48,6 +61,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             if (msg) {
                 this.addInsight(msg.text, msg.audio);
             }
+        }
+    }
+
+    public setConnectionStatus(isConnected: boolean) {
+        this._isConnected = isConnected;
+        if (this._view) {
+            this._view.webview.postMessage({ type: 'statusUpdate', isConnected });
         }
     }
 
@@ -61,9 +81,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    public setConnectionStatus(isConnected: boolean) {
+    public loadHistory(history: any[]) {
         if (this._view) {
-            this._view.webview.postMessage({ type: 'statusUpdate', isConnected });
+            this._view.webview.postMessage({ type: 'loadHistory', history });
         }
     }
 
@@ -166,6 +186,7 @@ graph TD
                         background-color: var(--vscode-sideBar-background);
                         align-items: center;
                         justify-content: space-between;
+                        flex-shrink: 0;
                     }
                     
                     .tab-container {
@@ -232,6 +253,7 @@ graph TD
                         display: flex;
                         flex-direction: column;
                         gap: 15px;
+                        padding-bottom: 60px; /* Space for clear button */
                     }
 
                     .message {
@@ -359,8 +381,8 @@ graph TD
                 <!-- Tabs -->
                 <div class="tabs">
                     <div class="tab-container">
-                        <div class="tab active" onclick="switchTab('chat')">Chat</div>
-                        <div class="tab" onclick="switchTab('architecture')">Architecture</div>
+                        <div class="tab active" id="tab-chat" onclick="switchTab('chat')">Chat</div>
+                        <div class="tab" id="tab-architecture" onclick="switchTab('architecture')">Architecture</div>
                     </div>
                     <div class="status-container" title="WebSocket Connection Status">
                         <div id="status-dot" class="status-dot"></div>
@@ -394,26 +416,45 @@ graph TD
 
 				<script nonce="${nonce}">
                     const vscode = acquireVsCodeApi();
+                    let chatHistory = [];
                     
+                    // Initialize
+                    window.addEventListener('load', () => {
+                        // Restore state
+                        const state = vscode.getState() || { tab: 'chat' };
+                        switchTab(state.tab, false); // false = don't save state yet
+
+                        // Notify extension we are ready
+                        vscode.postMessage({ type: 'webviewLoaded' });
+                    });
+
                     // Tab Switching
-                    // (We need to attach this to window because module scope is not global)
-                    window.switchTab = function(tabName) {
+                    window.switchTab = function(tabName, saveState = true) {
                         // Hide all content
                         document.querySelectorAll('.content-area').forEach(el => el.classList.remove('active'));
                         document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
 
                         // Show selected
-                        document.getElementById(tabName + '-content').classList.add('active');
+                        const content = document.getElementById(tabName + '-content');
+                        const tab = document.getElementById('tab-' + tabName);
                         
-                        // Highlight tab
-                        const tabs = document.querySelectorAll('.tab');
-                        if (tabName === 'chat') tabs[0].classList.add('active');
-                        else tabs[1].classList.add('active');
+                        if (content) content.classList.add('active');
+                        if (tab) tab.classList.add('active');
+
+                        if (saveState) {
+                            vscode.setState({ tab: tabName });
+                        }
                     }
 
                     // Clear Chat
                     window.clearChat = function() {
                         document.getElementById('chat-container').innerHTML = '';
+                        chatHistory = [];
+                        saveHistory();
+                    }
+
+                    function saveHistory() {
+                        vscode.postMessage({ type: 'saveHistory', history: chatHistory });
                     }
 
                     // Message Handling
@@ -421,10 +462,13 @@ graph TD
                         const message = event.data;
                         switch (message.type) {
                             case 'addInsight':
-                                addMessage(message.text, message.audio);
+                                addMessage(message.text, message.audio, true); // true = save to history
                                 break;
                             case 'statusUpdate':
                                 updateStatus(message.isConnected);
+                                break;
+                            case 'loadHistory':
+                                loadHistory(message.history);
                                 break;
                         }
                     });
@@ -441,10 +485,35 @@ graph TD
                         }
                     }
 
-                    function addMessage(text, audioBase64) {
+                    function loadHistory(history) {
+                        if (!history) return;
+                        chatHistory = history;
                         const container = document.getElementById('chat-container');
-                        const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        container.innerHTML = ''; // Clear current
+                        
+                        history.forEach(msg => {
+                            renderMessage(msg.text, msg.audio, msg.timestamp, false); // false = don't auto-play
+                        });
+                        
+                        // Scroll to bottom
+                        if (container.lastElementChild) {
+                            container.lastElementChild.scrollIntoView();
+                        }
+                    }
 
+                    function addMessage(text, audioBase64, save = false) {
+                        const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        
+                        if (save) {
+                            chatHistory.push({ text, audio: audioBase64, timestamp: now });
+                            saveHistory();
+                        }
+
+                        renderMessage(text, audioBase64, now, true); // true = auto-play new messages
+                    }
+
+                    function renderMessage(text, audioBase64, timestamp, autoPlay) {
+                        const container = document.getElementById('chat-container');
                         const msgDiv = document.createElement('div');
                         msgDiv.className = 'message';
 
@@ -469,7 +538,7 @@ graph TD
 
                         const time = document.createElement('span');
                         time.className = 'timestamp';
-                        time.textContent = now;
+                        time.textContent = timestamp;
                         header.appendChild(time);
 
                         body.appendChild(header);
@@ -482,13 +551,13 @@ graph TD
 
                         // Audio
                         if (audioBase64) {
-                            const audioId = 'audio-' + Date.now();
+                            const audioId = 'audio-' + Math.random().toString(36).substr(2, 9);
                             const playerDiv = document.createElement('div');
                             playerDiv.className = 'audio-player';
 
                             const audio = document.createElement('audio');
                             audio.id = audioId;
-                            audio.src = \`data:audio/mp3;base64,\${audioBase64}\`;
+                            audio.src = 'data:audio/mp3;base64,' + audioBase64;
                             playerDiv.appendChild(audio);
 
                             const playBtn = document.createElement('button');
@@ -504,19 +573,19 @@ graph TD
 
                             body.appendChild(playerDiv);
 
-                            // Auto-play
-                            setTimeout(() => {
-                                const audioEl = document.getElementById(audioId);
-                                if(audioEl) {
-                                    audioEl.play().catch(e => console.log("Auto-play prevented:", e));
-                                }
-                            }, 500);
+                            // Auto-play only if requested (new messages)
+                            if (autoPlay) {
+                                setTimeout(() => {
+                                    const audioEl = document.getElementById(audioId);
+                                    if(audioEl) {
+                                        audioEl.play().catch(e => console.log("Auto-play prevented:", e));
+                                    }
+                                }, 500);
+                            }
                         }
 
                         msgDiv.appendChild(body);
                         container.appendChild(msgDiv);
-                        
-                        // Scroll to bottom
                         msgDiv.scrollIntoView({ behavior: 'smooth' });
                     }
                 </script>

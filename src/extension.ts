@@ -99,6 +99,18 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('cortex-vs.connect', connect));
 	context.subscriptions.push(vscode.commands.registerCommand('cortex-vs.disconnect', disconnect));
 
+	// Persistence Commands
+	context.subscriptions.push(vscode.commands.registerCommand('cortex.saveChatHistory', (history: any[]) => {
+		context.globalState.update('cortex.chatHistory', history);
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('cortex.loadChatHistory', () => {
+		const history = context.globalState.get<any[]>('cortex.chatHistory');
+		if (history) {
+			provider.loadHistory(history);
+		}
+	}));
+
 	// Automatically connect on startup
 	connect();
 }
