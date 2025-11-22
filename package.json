@@ -4,7 +4,7 @@
   "description": "An agentic learning framework designed to grow alongside the developer and make them better over time by acting as a mentor who is aware of your progress and habits.",
   "version": "0.0.1",
   "engines": {
-    "vscode": "^1.106.0"
+    "vscode": "^1.90.0"
   },
   "categories": [
     "Other"

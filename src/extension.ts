@@ -8,6 +8,7 @@ import { ChatViewProvider } from './ChatViewProvider';
 export function activate(context: vscode.ExtensionContext) {
 
 	console.log('Cortex Mentor extension is now active.');
+	vscode.window.showInformationMessage('Cortex Mentor: Extension Activated!');
 
 	// Register the Chat View Provider
 	const provider = new ChatViewProvider(context.extensionUri);
