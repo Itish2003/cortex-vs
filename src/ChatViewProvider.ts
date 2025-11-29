@@ -406,6 +406,17 @@ graph TD
                         from { opacity: 0; }
                         to { opacity: 1; }
                     }
+
+                    @keyframes pulse {
+                        0% { transform: scale(1); }
+                        50% { transform: scale(1.1); }
+                        100% { transform: scale(1); }
+                    }
+
+                    .play-btn.attention {
+                        animation: pulse 1.5s infinite;
+                        border: 2px solid var(--vscode-focusBorder);
+                    }
                 </style>
 			</head>
 			<body>
@@ -475,7 +486,19 @@ ${mermaidDiagram}
                         // Lightbox Listeners
                         document.getElementById('mermaid-output').addEventListener('click', openLightbox);
                         document.getElementById('lightbox').addEventListener('click', closeLightbox);
+
+                        // Unlock Audio on Interaction
+                        document.body.addEventListener('click', unlockAudio, { once: true });
+                        document.body.addEventListener('keydown', unlockAudio, { once: true });
                     });
+
+                    function unlockAudio() {
+                        const AudioContext = window.AudioContext || window.webkitAudioContext;
+                        if (AudioContext) {
+                            const ctx = new AudioContext();
+                            ctx.resume();
+                        }
+                    }
 
                     // Tab Switching
                     function switchTab(tabName, saveState = true) {
@@ -664,7 +687,10 @@ ${mermaidDiagram}
                             const playBtn = document.createElement('button');
                             playBtn.className = 'play-btn';
                             playBtn.innerHTML = '▶'; // Play symbol
-                            playBtn.onclick = () => document.getElementById(audioId).play();
+                            playBtn.onclick = () => {
+                                document.getElementById(audioId).play();
+                                playBtn.classList.remove('attention');
+                            };
                             playerDiv.appendChild(playBtn);
                             
                             const label = document.createElement('span');
@@ -679,7 +705,12 @@ ${mermaidDiagram}
                                 setTimeout(() => {
                                     const audioEl = document.getElementById(audioId);
                                     if(audioEl) {
-                                        audioEl.play().catch(e => console.log("Auto-play prevented:", e));
+                                        audioEl.play().catch(e => {
+                                            console.log("Auto-play prevented:", e);
+                                            // Visual cue that audio is ready but blocked
+                                            const btn = audioEl.nextElementSibling;
+                                            if (btn) btn.classList.add('attention');
+                                        });
                                     }
                                 }, 500);
                             }
