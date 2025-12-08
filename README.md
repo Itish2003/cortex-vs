@@ -36,6 +36,82 @@ This is the frontend VS Code extension for the Cortex Mentor project. It connect
     *   `Cortex: Disconnect`: Manually disconnect from the backend.
 5.  **Receive Insights**: As you work and trigger events that the backend processes, you will hear audio insights played directly in your editor.
 
+## Testing
+
+The extension includes a comprehensive test suite for unit and integration testing.
+
+### Running Tests
+
+```bash
+# Run all tests with coverage
+npm test
+
+# Run type checking only
+npm run check-types
+
+# Run linting only
+npm run lint
+
+# Compile the extension (includes type checking and linting)
+npm run compile
+```
+
+### Test Files
+
+| File | Description |
+|------|-------------|
+| `src/test/extension.test.ts` | Extension activation, command registration, and configuration tests |
+| `src/test/chatViewProvider.test.ts` | ChatViewProvider unit tests for message handling and state management |
+| `src/test/websocket.test.ts` | WebSocket client configuration, message parsing, and connection state tests |
+
+### Test Categories
+
+#### Extension Tests (`extension.test.ts`)
+- Extension activation and lifecycle
+- Command registration (`cortex-vs.connect`, `cortex-vs.disconnect`, `cortex.saveChatHistory`, `cortex.loadChatHistory`)
+- Configuration settings (`cortex.backendUrl`)
+- View contributions (sidebar, chat view)
+
+#### ChatViewProvider Tests (`chatViewProvider.test.ts`)
+- Provider instantiation and view type
+- Connection status updates
+- Message queuing before view resolution
+- History loading
+- Edge cases (empty audio, long text, special characters)
+
+#### WebSocket Tests (`websocket.test.ts`)
+- WebSocket URL configuration
+- Message parsing and validation
+- Connection state management
+- Error handling (connection refused, timeout, network errors)
+- Reconnection behavior
+
+### Coverage Requirements
+
+- Minimum coverage threshold: **60%**
+- Coverage reports are generated in `coverage/` directory
+
+### Writing New Tests
+
+```typescript
+import * as assert from 'assert';
+import * as vscode from 'vscode';
+
+suite('My Test Suite', () => {
+    test('Should do something', async () => {
+        const result = await someFunction();
+        assert.strictEqual(result, expectedValue);
+    });
+});
+```
+
+### Debugging Tests
+
+1. Open the `cortex-vs` directory in VS Code
+2. Go to the Debug panel (Cmd+Shift+D / Ctrl+Shift+D)
+3. Select "Extension Tests" from the dropdown
+4. Press F5 to run tests with debugger attached
+
 ---
 
 **Enjoy!**
